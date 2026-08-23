@@ -2,16 +2,14 @@ import { Schemas } from '@dcl/sdk/ecs'
 import { registerMessages } from '@dcl/sdk/network'
 
 /**
- * クライアントとサーバーが共有するメッセージ定義。
- * registerMessages() はモジュール読み込み時に一度だけ走る必要があるため、
- * 関数の中や条件分岐の中で呼ばないこと。
+ * Shared message definitions. registerMessages() must run once at module load
+ * on both sides, so never call it conditionally or inside a function.
  */
 export const Messages = {
   // Client -> Server
   contribute: Schemas.Map({}),
 
   // Server -> Client
-  serverReady: Schemas.Map({ startedAt: Schemas.Int64 }),
   contributed: Schemas.Map({ total: Schemas.Int })
 }
 

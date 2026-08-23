@@ -1,23 +1,13 @@
-import { engine } from '@dcl/sdk/ecs'
 import { Color4 } from '@dcl/sdk/math'
 import ReactEcs, { Label, ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs'
-import { SharedState } from '../shared/schemas'
-import { isReady } from './setup'
+import { getTotal, isReady } from './setup'
 
 /**
- * モバイルの予約領域を避ける。
- * 画面左＝ジョイスティック、右下＝インタラクト/チャット/プロフィール。
- * 自前のUIは上部中央に寄せる。
+ * Mobile reserves the left edge (joystick) and the bottom-right corner
+ * (interact button, chat, profile). Keep custom UI at the top center.
  */
 export function setupUi() {
   ReactEcsRenderer.setUiRenderer(uiComponent)
-}
-
-function readTotal(): number {
-  for (const [, state] of engine.getEntitiesWith(SharedState)) {
-    return state.total
-  }
-  return 0
 }
 
 const uiComponent = () => (
@@ -35,8 +25,8 @@ const uiComponent = () => (
       uiBackground={{ color: Color4.create(0, 0, 0, 0.55) }}
     >
       <Label
-        value={isReady() ? `${readTotal()}` : '接続中…'}
-        fontSize={42}
+        value={isReady() ? `${getTotal()}` : 'Waking up the server…'}
+        fontSize={36}
         color={Color4.White()}
         textAlign="middle-center"
       />

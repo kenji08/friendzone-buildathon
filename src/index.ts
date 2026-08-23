@@ -5,7 +5,7 @@ import { initServer } from './server/server'
 
 export function main() {
   if (isServer()) {
-    void initServer()
+    initServer()
     return
   }
 
