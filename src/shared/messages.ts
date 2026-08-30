@@ -7,10 +7,11 @@ import { registerMessages } from '@dcl/sdk/network'
  */
 export const Messages = {
   // Client -> Server
-  contribute: Schemas.Map({}),
+  pickup: Schemas.Map({ index: Schemas.Int }),
 
   // Server -> Client
-  contributed: Schemas.Map({ total: Schemas.Int })
+  pickedUp: Schemas.Map({ index: Schemas.Int, carrier: Schemas.String }),
+  dropped: Schemas.Map({ index: Schemas.Int })
 }
 
 export const room = registerMessages(Messages)
