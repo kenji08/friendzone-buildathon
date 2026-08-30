@@ -171,10 +171,23 @@ function saveSystem(dt: number) {
   void saveRounds()
 }
 
+/**
+ * 保存済みの記録を読み戻す。
+ *
+ * キーが存在しない状態で読むとエラー経路に入り、応答が返らないまま
+ * 60秒の async turn 上限に達してサーバーが落ちることがある。
+ * 初回起動では必ずキーが無いので、見つからなければその場で作っておく。
+ */
 async function restore() {
   try {
     const raw = await Storage.get<string>(STORAGE_KEY)
-    const parsed = raw ? parseInt(raw, 10) : 0
+
+    if (raw === null || raw === undefined || raw === '') {
+      await seed()
+      return
+    }
+
+    const parsed = parseInt(raw, 10)
     if (!Number.isFinite(parsed) || parsed <= 0) return
 
     const state = SharedState.getMutableOrNull(stateEntity)
@@ -183,7 +196,13 @@ async function restore() {
     console.log('[SERVER] restored rounds =', parsed)
   } catch (e) {
     console.log('[SERVER] failed to read storage:', e)
+    await seed()
   }
+}
+
+async function seed() {
+  const ok = await Storage.set(STORAGE_KEY, '0')
+  console.log('[SERVER] seeded rounds key:', ok)
 }
 
 async function saveRounds() {
