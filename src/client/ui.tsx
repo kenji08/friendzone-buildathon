@@ -1,37 +1,48 @@
 import { Color4 } from '@dcl/sdk/math'
 import ReactEcs, { Label, ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs'
-import { MAX_CARRIED, ORBS_TO_WIN } from '../shared/config'
+import { MAX_CARRIED } from '../shared/config'
 import { carriedByMe } from './orbs'
 import { isReady } from './setup'
 
 /**
  * Mobile reserves the left edge (joystick) and the bottom-right corner
  * (interact button, chat, profile). Keep custom UI at the top center.
+ *
+ * The container carries explicit dimensions: an auto-sized parent can
+ * collapse when the label content changes, which made the readout vanish.
  */
 export function setupUi() {
   ReactEcsRenderer.setUiRenderer(uiComponent)
 }
 
-function statusText(): string {
-  if (!isReady()) return 'Waking up the server…'
-  return `Carrying ${carriedByMe()} / ${MAX_CARRIED}   ·   Gather ${ORBS_TO_WIN}`
-}
-
 const uiComponent = () => (
   <UiEntity
     uiTransform={{
+      positionType: 'absolute',
+      position: { top: '4%', left: '0%' },
       width: '100%',
-      height: '100%',
+      height: 52,
       justifyContent: 'center',
-      alignItems: 'flex-start',
+      alignItems: 'center',
       pointerFilter: 'none'
     }}
   >
     <UiEntity
-      uiTransform={{ margin: { top: '4%' }, padding: 12 }}
+      uiTransform={{
+        width: 260,
+        height: 52,
+        justifyContent: 'center',
+        alignItems: 'center'
+      }}
       uiBackground={{ color: Color4.create(0, 0, 0, 0.55) }}
     >
-      <Label value={statusText()} fontSize={28} color={Color4.White()} textAlign="middle-center" />
+      <Label
+        value={isReady() ? `${carriedByMe()} / ${MAX_CARRIED}` : 'Waking up…'}
+        fontSize={30}
+        color={Color4.White()}
+        textAlign="middle-center"
+        uiTransform={{ width: '100%', height: '100%' }}
+      />
     </UiEntity>
   </UiEntity>
 )

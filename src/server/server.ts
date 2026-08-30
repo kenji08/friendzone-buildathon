@@ -120,12 +120,15 @@ function carryTimerSystem(dt: number) {
       }
     }
 
+    const heldFor = Math.round((now - state.pickedUpAt) / 100) / 10
+
     const mutable = Orb.getMutableOrNull(orb)
     if (!mutable) continue
     const index = mutable.index
     mutable.carrier = ''
     mutable.pickedUpAt = 0
     room.send('dropped', { index })
+    console.log('[SERVER] orb', index, 'dropped after', heldFor, 'sec')
   }
 }
 

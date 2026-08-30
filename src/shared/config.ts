@@ -11,19 +11,35 @@ export const ORB_COUNT = 11
 export const ORBS_TO_WIN = 6
 
 /** 拾ってから手を離れるまでの秒数 */
-export const CARRY_DURATION = 12
+export const CARRY_DURATION = 30
 
 /** 同時に持てる数 */
 export const MAX_CARRIED = 4
 
 /** 拾える距離（メートル） */
-export const PICKUP_RANGE = 4
+export const PICKUP_RANGE = 8
 
-/** 追従する球どうしの間隔（秒）。1個目は0.25秒前、2個目は0.5秒前の位置を追う */
-export const TRAIL_LAG = 0.25
+/**
+ * 1個目の球が追う位置の遅れ（秒）。
+ * 小さすぎるとアバターの体に重なって見えなくなる。
+ */
+export const TRAIL_START_LAG = 0.5
+
+/** 球どうしの間隔（秒）。2個目以降はこの分だけ後ろにずれる */
+export const TRAIL_LAG = 0.3
 
 /** 位置履歴を取る間隔（秒） */
 export const TRAIL_SAMPLE_INTERVAL = 0.05
+
+/**
+ * 止まっている時に背後へ並ぶ距離（メートル）。
+ * 履歴を追う方式は、止まると全部が同じ座標に重なってしまうため、
+ * 動いていない間はこちらの隊列に切り替える。
+ */
+export const TRAIL_START_DISTANCE = 1.3
+
+/** 止まっている時の球どうしの間隔（メートル） */
+export const TRAIL_SPACING_DISTANCE = 0.9
 
 /** 球が光り始める距離。これより近いと明るくなる */
 export const GLOW_RANGE = 12
