@@ -5,13 +5,15 @@ import { Storage } from '@dcl/sdk/server'
 import {
   CARRY_DURATION,
   CARRY_TO_WIN,
-  INTERMISSION_DURATION,
+  JOIN_WINDOW,
   LEADERBOARD_KEEP,
   LEADERBOARD_SIZE,
   MAX_CARRIED,
+  MAX_PARTICIPANTS,
   ORB_COUNT,
   ORB_SPAWNS,
-  PICKUP_RANGE
+  PICKUP_RANGE,
+  RESULT_DURATION
 } from '../shared/config'
 import { room } from '../shared/messages'
 import {
@@ -19,8 +21,12 @@ import {
   Leaderboard,
   LeaderboardEntry,
   Orb,
-  PHASE_INTERMISSION,
   PHASE_PLAYING,
+  PHASE_RESULT,
+  PHASE_STARTING,
+  PHASE_WAITING,
+  Participant,
+  Participants,
   Pulse,
   SharedState,
   SyncId,
@@ -47,6 +53,16 @@ const wins = new Map<string, number>()
 /** アドレスごとの表示名。クライアントから受け取る */
 const names = new Map<string, string>()
 
+/**
+ * いまラウンドに参加している人。
+ * シーンに居ることと参加していることは別物として扱う。
+ * 観戦したい人がシーンを出る必要がないようにするため。
+ */
+const participants = new Set<string>()
+
+/** 次にフェーズが切り替わる時刻 */
+let phaseEndsAt = 0
+
 let sinceLastBeat = 0
 let sinceLastSave = 0
 let sinceLastCarryCheck = 0
@@ -65,13 +81,19 @@ export function initServer() {
   SharedState.create(stateEntity, {
     rounds: 0,
     lastWinner: '',
-    phase: PHASE_PLAYING,
+    phase: PHASE_WAITING,
     roundStartsAt: 0
   })
   Leaderboard.create(stateEntity, { json: '[]' })
+  Participants.create(stateEntity, { json: '[]' })
   syncEntity(
     stateEntity,
-    [Pulse.componentId, SharedState.componentId, Leaderboard.componentId],
+    [
+      Pulse.componentId,
+      SharedState.componentId,
+      Leaderboard.componentId,
+      Participants.componentId
+    ],
     SyncId.SHARED_STATE
   )
 
@@ -101,9 +123,21 @@ export function initServer() {
 
     names.set(address, name)
     if (wins.has(address)) publishLeaderboard()
+    if (participants.has(address)) publishParticipants()
+  })
+
+  room.onMessage('join', (_data, context) => {
+    if (!context) return
+    tryJoin(context.from)
+  })
+
+  room.onMessage('leave', (_data, context) => {
+    if (!context) return
+    leaveRound(context.from)
   })
 
   engine.addSystem(heartbeatSystem)
+  engine.addSystem(presenceSystem)
   engine.addSystem(roundSystem)
   engine.addSystem(carryTimerSystem)
   engine.addSystem(saveSystem)
@@ -120,12 +154,13 @@ function spawnFor(index: number): Vector3 {
 }
 
 function phase(): string {
-  return SharedState.getOrNull(stateEntity)?.phase ?? PHASE_PLAYING
+  return SharedState.getOrNull(stateEntity)?.phase ?? PHASE_WAITING
 }
 
 /** クライアントは位置を偽装できるので、拾えるかどうかはサーバー側の座標で判定する */
 function tryPickup(index: number, from: string) {
   if (phase() !== PHASE_PLAYING) return
+  if (!participants.has(from)) return // 観戦者は球に触れない
 
   const orb = orbs[index]
   if (!orb) return
@@ -148,14 +183,13 @@ function tryPickup(index: number, from: string) {
   mutable.pickedUpAt = Date.now()
 
   room.send('pickedUp', { index, carrier: from })
-  console.log('[SERVER] orb', index, 'picked up by', from)
+  publishParticipants()
 
   if (carriedCount(from) >= CARRY_TO_WIN) declareWin(from)
 }
 
 /**
- * Phase 1 の暫定ルール。1人が規定数を同時に持てば決着。
- * 決着したら休憩に入り、そのあいだに球を初期位置へ戻す。
+ * 規定数を同時に持てば決着。参加者だけが対象。
  */
 function declareWin(winner: string) {
   const state = SharedState.getMutableOrNull(stateEntity)
@@ -163,34 +197,166 @@ function declareWin(winner: string) {
 
   state.rounds += 1
   state.lastWinner = winner
-  state.phase = PHASE_INTERMISSION
-  state.roundStartsAt = Date.now() + INTERMISSION_DURATION * 1000
+  state.phase = PHASE_RESULT
+  state.roundStartsAt = 0
+  phaseEndsAt = Date.now() + RESULT_DURATION * 1000
 
   const total = (wins.get(winner) ?? 0) + 1
   wins.set(winner, total)
   publishLeaderboard()
 
-  console.log('[SERVER] win by', winner, '— round', state.rounds, '/ wins', total)
-  room.send('won', { winner, rounds: state.rounds })
+  const name = names.get(winner) ?? ''
+  console.log('[SERVER] win by', name || winner, '— round', state.rounds, '/ wins', total)
+  room.send('won', { winner, name, rounds: state.rounds })
 
   releaseOrbs()
+  publishParticipants()
   void saveBoard()
   void saveRounds()
 }
 
-/** 休憩が明けたら球を配置し直して次のラウンドを始める */
+/** 枠が空いていれば参加させる。募集中と開始待ちの間だけ受け付ける */
+function tryJoin(address: string) {
+  if (participants.has(address)) return
+
+  const state = SharedState.getOrNull(stateEntity)
+  if (!state) return
+
+  if (state.phase !== PHASE_WAITING && state.phase !== PHASE_STARTING) {
+    room.send('joinRejected', { reason: 'round in progress' }, { to: [address] })
+    return
+  }
+
+  if (participants.size >= MAX_PARTICIPANTS) {
+    room.send('joinRejected', { reason: 'round is full' }, { to: [address] })
+    return
+  }
+
+  participants.add(address)
+  publishParticipants()
+  console.log('[SERVER] joined:', names.get(address) ?? address, `(${participants.size})`)
+
+  // 最初の1人が入ったら、他の人を待つ猶予を置いてから始める
+  if (state.phase === PHASE_WAITING) {
+    const mutable = SharedState.getMutableOrNull(stateEntity)
+    if (!mutable) return
+    mutable.phase = PHASE_STARTING
+    mutable.roundStartsAt = Date.now() + JOIN_WINDOW * 1000
+    phaseEndsAt = mutable.roundStartsAt
+  }
+}
+
+/**
+ * ラウンドから抜ける。シーンからは出ない。
+ * 持っていた球はその場に落とす。
+ */
+function leaveRound(address: string) {
+  if (!participants.delete(address)) return
+
+  dropCarriedBy(address)
+  publishParticipants()
+  console.log('[SERVER] left:', names.get(address) ?? address, `(${participants.size})`)
+
+  if (participants.size === 0) backToWaiting()
+}
+
+function dropCarriedBy(address: string) {
+  const dropAt = positionOf(address)
+  for (const orb of orbs) {
+    if (Orb.getOrNull(orb)?.carrier !== address) continue
+
+    if (dropAt) {
+      const transform = Transform.getMutableOrNull(orb)
+      if (transform) transform.position = Vector3.create(dropAt.x, dropAt.y + 0.5, dropAt.z)
+    }
+
+    const mutable = Orb.getMutableOrNull(orb)
+    if (!mutable) continue
+    mutable.carrier = ''
+    mutable.pickedUpAt = 0
+  }
+}
+
+function backToWaiting() {
+  const state = SharedState.getMutableOrNull(stateEntity)
+  if (!state) return
+  state.phase = PHASE_WAITING
+  state.roundStartsAt = 0
+  phaseEndsAt = 0
+  releaseOrbs()
+  resetOrbs()
+}
+
+/** シーンから居なくなった人を参加者から外す。放置すると枠が埋まったままになる */
+function presenceSystem() {
+  if (participants.size === 0) return
+
+  const present = new Set<string>()
+  for (const [, identity] of engine.getEntitiesWith(PlayerIdentityData)) {
+    present.add(identity.address)
+  }
+
+  let changed = false
+  for (const address of participants) {
+    if (present.has(address)) continue
+    participants.delete(address)
+    dropCarriedBy(address)
+    changed = true
+    console.log('[SERVER] dropped absent participant:', address)
+  }
+
+  if (!changed) return
+  publishParticipants()
+  if (participants.size === 0) backToWaiting()
+}
+
+/** 参加者の一覧を配る。参加・離脱・増減の時だけ更新する */
+function publishParticipants() {
+  const list: Participant[] = []
+  for (const address of participants) {
+    list.push({
+      address,
+      name: names.get(address) ?? '',
+      carrying: carriedCount(address)
+    })
+  }
+
+  const component = Participants.getMutableOrNull(stateEntity)
+  if (!component) return
+  component.json = JSON.stringify(list)
+}
+
+/** 時間で切り替わるフェーズを進める */
 function roundSystem() {
   const state = SharedState.getOrNull(stateEntity)
-  if (!state || state.phase !== PHASE_INTERMISSION) return
-  if (Date.now() < state.roundStartsAt) return
+  if (!state) return
+  if (phaseEndsAt === 0 || Date.now() < phaseEndsAt) return
 
-  resetOrbs()
+  if (state.phase === PHASE_STARTING) {
+    resetOrbs()
+    const mutable = SharedState.getMutableOrNull(stateEntity)
+    if (!mutable) return
+    mutable.phase = PHASE_PLAYING
+    mutable.roundStartsAt = 0
+    phaseEndsAt = 0
+    console.log('[SERVER] round begins with', participants.size, 'players')
+    return
+  }
 
-  const mutable = SharedState.getMutableOrNull(stateEntity)
-  if (!mutable) return
-  mutable.phase = PHASE_PLAYING
-  mutable.roundStartsAt = 0
-  console.log('[SERVER] round', mutable.rounds + 1, 'begins')
+  if (state.phase === PHASE_RESULT) {
+    // 参加者はそのまま残す。続けて遊びたい人が押し直さずに済むように
+    if (participants.size === 0) {
+      backToWaiting()
+      return
+    }
+
+    resetOrbs()
+    const mutable = SharedState.getMutableOrNull(stateEntity)
+    if (!mutable) return
+    mutable.phase = PHASE_STARTING
+    mutable.roundStartsAt = Date.now() + JOIN_WINDOW * 1000
+    phaseEndsAt = mutable.roundStartsAt
+  }
 }
 
 /** 持ち主だけ解除する。位置は休憩明けに戻す */
@@ -245,6 +411,7 @@ function carryTimerSystem(dt: number) {
     mutable.carrier = ''
     mutable.pickedUpAt = 0
     room.send('dropped', { index })
+    publishParticipants()
     console.log('[SERVER] orb', index, 'dropped after', heldFor, 'sec')
   }
 }

@@ -4,8 +4,12 @@ import { Vector3 } from '@dcl/sdk/math'
  * 触りながら調整する数字。ここだけ見れば全部変えられるようにまとめてある。
  */
 
-/** 世界に置く球の総数 */
-export const ORB_COUNT = 11
+/**
+ * 世界に置く球の総数。
+ * 全員が「あと1個」で止まっても、なお誰かが揃えられる余裕を持たせる。
+ * 4人が3個ずつ抱えた状態でも4個残る計算。
+ */
+export const ORB_COUNT = 16
 
 /**
  * 決着に必要な数。
@@ -22,8 +26,14 @@ export const CARRY_TO_WIN = 4
 /** 勝利表示を出しておく秒数 */
 export const WIN_BANNER_DURATION = 4
 
-/** 決着から次のラウンドが始まるまでの秒数 */
-export const INTERMISSION_DURATION = 60
+/** 最初の参加者が出てから、ラウンドが始まるまでの猶予（秒）。他の人が入る余地 */
+export const JOIN_WINDOW = 20
+
+/** 結果表示を出しておく秒数 */
+export const RESULT_DURATION = 6
+
+/** 1ラウンドに参加できる人数の上限 */
+export const MAX_PARTICIPANTS = 6
 
 /** リーダーボードに表示する人数 */
 export const LEADERBOARD_SIZE = 5
@@ -31,8 +41,8 @@ export const LEADERBOARD_SIZE = 5
 /** 保存しておく人数。表示より多めに持っておく */
 export const LEADERBOARD_KEEP = 20
 
-/** 拾ってから手を離れるまでの秒数 */
-export const CARRY_DURATION = 30
+/** 拾ってから手を離れるまでの秒数。短いほど球が滞留せず、他の人に回る */
+export const CARRY_DURATION = 15
 
 /** 同時に持てる数 */
 export const MAX_CARRIED = 4
@@ -79,5 +89,10 @@ export const ORB_SPAWNS: Vector3[] = [
   Vector3.create(16, 0.5, 28),
   Vector3.create(10, 0.5, 11),
   Vector3.create(23, 0.5, 12),
-  Vector3.create(12, 0.5, 21)
+  Vector3.create(12, 0.5, 21),
+  Vector3.create(21, 0.5, 22),
+  Vector3.create(7, 0.5, 29),
+  Vector3.create(29, 0.5, 4),
+  Vector3.create(3, 0.5, 11),
+  Vector3.create(20, 0.5, 3)
 ]

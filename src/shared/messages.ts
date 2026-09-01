@@ -13,11 +13,16 @@ export const Messages = {
    * 身元は context.from（検証済みアドレス）を使い、名前は表示用のラベルとしてのみ扱う。
    */
   register: Schemas.Map({ name: Schemas.String }),
+  /** ラウンドへの参加・離脱。シーンに居るかどうかとは別に管理する */
+  join: Schemas.Map({}),
+  leave: Schemas.Map({}),
 
   // Server -> Client
   pickedUp: Schemas.Map({ index: Schemas.Int, carrier: Schemas.String }),
   dropped: Schemas.Map({ index: Schemas.Int }),
-  won: Schemas.Map({ winner: Schemas.String, rounds: Schemas.Int })
+  won: Schemas.Map({ winner: Schemas.String, name: Schemas.String, rounds: Schemas.Int }),
+  /** 参加できなかった時の理由。枠が埋まっている等 */
+  joinRejected: Schemas.Map({ reason: Schemas.String })
 }
 
 export const room = registerMessages(Messages)

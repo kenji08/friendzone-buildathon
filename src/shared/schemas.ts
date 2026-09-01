@@ -11,9 +11,14 @@ export enum SyncId {
 export const HEARTBEAT_INTERVAL = 2
 export const HEARTBEAT_TIMEOUT = 6
 
-/** ラウンドの状態 */
+/**
+ * ラウンドの状態。
+ * 募集中は時間制限を置かない。初めて来た人がルールを読む時間になる。
+ */
+export const PHASE_WAITING = 'waiting'
+export const PHASE_STARTING = 'starting'
 export const PHASE_PLAYING = 'playing'
-export const PHASE_INTERMISSION = 'intermission'
+export const PHASE_RESULT = 'result'
 
 /**
  * 球の状態。位置は Transform 側で持つ。
@@ -54,6 +59,13 @@ export const Leaderboard = engine.defineComponent('friendzone:Leaderboard', {
   json: Schemas.String
 })
 
+/** いまラウンドに参加している人。参加・離脱の時だけ変わる */
+export const Participants = engine.defineComponent('friendzone:Participants', {
+  json: Schemas.String
+})
+
+export type Participant = { address: string; name: string; carrying: number }
+
 export type LeaderboardEntry = { address: string; name: string; wins: number }
 
 /** クライアントからの書き込みを一切受け付けない（サーバー権威） */
@@ -65,5 +77,6 @@ export function protectState() {
   Pulse.validateBeforeChange(fromServer)
   SharedState.validateBeforeChange(fromServer)
   Leaderboard.validateBeforeChange(fromServer)
+  Participants.validateBeforeChange(fromServer)
   Orb.validateBeforeChange(fromServer)
 }

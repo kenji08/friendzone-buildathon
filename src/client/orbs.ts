@@ -16,7 +16,7 @@ import { getPlayer } from '@dcl/sdk/src/players'
 import { GLOW_RANGE, PICKUP_RANGE } from '../shared/config'
 import { room } from '../shared/messages'
 import { Orb } from '../shared/schemas'
-import { isPlaying } from './setup'
+import { amParticipating, isPlaying } from './setup'
 import { trailPosition } from './trail'
 
 /**
@@ -77,7 +77,9 @@ function ensureVisual(index: number): Entity {
  */
 function orbVisualSystem() {
   const selfPos = Transform.getOrNull(engine.PlayerEntity)?.position
-  const playing = isPlaying()
+  // 観戦者とラウンド外では触れない。サーバー側でも弾いているが、
+  // 触れるように見えるとタップの空振りが起きる
+  const canPick = isPlaying() && amParticipating()
 
   // 持ち主ごとに何個目かを数えるための作業用
   const carriedRank = new Map<string, number>()
@@ -91,9 +93,7 @@ function orbVisualSystem() {
       const worldPos = Transform.getOrNull(entity)?.position
       if (worldPos) visualTransform.position = worldPos
       setGlow(visual, selfPos, worldPos)
-      // 休憩中は拾えない。サーバー側でも弾いているが、
-      // 触れるように見えるとタップの空振りが起きる
-      setPickable(visual, playing)
+            setPickable(visual, canPick)
       continue
     }
 
