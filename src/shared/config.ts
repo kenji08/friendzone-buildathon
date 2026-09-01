@@ -6,10 +6,12 @@ import { Vector3 } from '@dcl/sdk/math'
 
 /**
  * 世界に置く球の総数。
- * 全員が「あと1個」で止まっても、なお誰かが揃えられる余裕を持たせる。
- * 4人が3個ずつ抱えた状態でも4個残る計算。
+ *
+ * 時間で手放す仕組みが無いので、全員が「あと1個」で止まったまま
+ * 球が枯れると誰も勝てなくなる。上限人数が3個ずつ抱えても
+ * なお1個余る数にしておく（6人 x 3個 + 1）。
  */
-export const ORB_COUNT = 16
+export const ORB_COUNT = 20
 
 /**
  * 決着に必要な数。
@@ -41,14 +43,21 @@ export const LEADERBOARD_SIZE = 5
 /** 保存しておく人数。表示より多めに持っておく */
 export const LEADERBOARD_KEEP = 20
 
-/** 拾ってから手を離れるまでの秒数。短いほど球が滞留せず、他の人に回る */
-export const CARRY_DURATION = 15
+/**
+ * 近づいたら取得する距離（メートル）。
+ * 小さな的をタップさせるより、歩いて触れる方がスマホでは扱いやすい。
+ * 広げすぎると立っているだけで集まってしまう。
+ */
+export const PICKUP_RADIUS = 1.5
 
 /** 同時に持てる数 */
 export const MAX_CARRIED = 4
 
-/** 拾える距離（メートル） */
-export const PICKUP_RANGE = 8
+/**
+ * サーバーが拾得を認める距離（メートル）。
+ * 自動取得の距離より広めに取り、通信の遅れによる座標のずれを吸収する。
+ */
+export const PICKUP_RANGE = 4
 
 /**
  * 1個目の球が追う位置の遅れ（秒）。
@@ -94,5 +103,9 @@ export const ORB_SPAWNS: Vector3[] = [
   Vector3.create(7, 0.5, 29),
   Vector3.create(29, 0.5, 4),
   Vector3.create(3, 0.5, 11),
-  Vector3.create(20, 0.5, 3)
+  Vector3.create(20, 0.5, 3),
+  Vector3.create(14, 0.5, 18),
+  Vector3.create(19, 0.5, 14),
+  Vector3.create(8, 0.5, 19),
+  Vector3.create(25, 0.5, 30)
 ]

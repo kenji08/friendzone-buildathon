@@ -1,6 +1,6 @@
 import { Color4 } from '@dcl/sdk/math'
 import ReactEcs, { Label, ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs'
-import { CARRY_DURATION, CARRY_TO_WIN, MAX_CARRIED, MAX_PARTICIPANTS } from '../shared/config'
+import { CARRY_TO_WIN, MAX_PARTICIPANTS } from '../shared/config'
 import { LeaderboardEntry, Participant } from '../shared/schemas'
 import { carriedByMe } from './orbs'
 import {
@@ -182,10 +182,10 @@ const rules = () => {
   if (amParticipating() || !(isWaiting() || isStarting())) return null
 
   const lines = [
-    `Walk close to an orb — it brightens — and tap to take it.`,
-    `What you carry trails behind you and slips away after ${CARRY_DURATION}s.`,
-    `Hold ${CARRY_TO_WIN} at once to win the round.`,
-    `You can carry up to ${MAX_CARRIED}.`
+    `Orbs brighten as you get close — walk into one to pick it up.`,
+    `What you carry trails behind you for everyone to see.`,
+    `Collect ${CARRY_TO_WIN} to win the round.`,
+    `Up to ${MAX_PARTICIPANTS} players per round.`
   ]
 
   return (

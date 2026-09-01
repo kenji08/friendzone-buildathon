@@ -3,7 +3,6 @@ import { Vector3 } from '@dcl/sdk/math'
 import { syncEntity } from '@dcl/sdk/network'
 import { Storage } from '@dcl/sdk/server'
 import {
-  CARRY_DURATION,
   CARRY_TO_WIN,
   JOIN_WINDOW,
   LEADERBOARD_KEEP,
@@ -39,7 +38,6 @@ const BOARD_KEY = 'leaderboard'
 /** 表示名の上限。長すぎる名前でUIが壊れるのを防ぐ */
 const MAX_NAME_LENGTH = 18
 const SAVE_INTERVAL = 15
-const CARRY_CHECK_INTERVAL = 0.25
 
 let stateEntity = engine.addEntity()
 const orbs: Entity[] = []
@@ -65,7 +63,6 @@ let phaseEndsAt = 0
 
 let sinceLastBeat = 0
 let sinceLastSave = 0
-let sinceLastCarryCheck = 0
 let dirty = false
 
 /**
@@ -139,7 +136,6 @@ export function initServer() {
   engine.addSystem(heartbeatSystem)
   engine.addSystem(presenceSystem)
   engine.addSystem(roundSystem)
-  engine.addSystem(carryTimerSystem)
   engine.addSystem(saveSystem)
 
   console.log('[SERVER] ready with', ORB_COUNT, 'orbs')
@@ -374,45 +370,6 @@ function resetOrbs() {
   for (let i = 0; i < orbs.length; i++) {
     const transform = Transform.getMutableOrNull(orbs[i])
     if (transform) transform.position = spawnFor(i)
-  }
-}
-
-/**
- * 持ってから一定時間で手を離れ、その人の足元に落ちる。
- *
- * 読み取りは必ず get / getOrNull を使う。getMutable は「変更あり」として
- * 同期対象にマークするので、読むだけのつもりで呼ぶと毎フレーム全球分の
- * 同期が走り、サーバーの実行時間上限を超えて落ちる。
- */
-function carryTimerSystem(dt: number) {
-  sinceLastCarryCheck += dt
-  if (sinceLastCarryCheck < CARRY_CHECK_INTERVAL) return
-  sinceLastCarryCheck = 0
-
-  const now = Date.now()
-
-  for (const orb of orbs) {
-    const state = Orb.getOrNull(orb)
-    if (!state || state.carrier === '') continue
-    if (now - state.pickedUpAt < CARRY_DURATION * 1000) continue
-
-    const dropAt = positionOf(state.carrier)
-    if (dropAt) {
-      const transform = Transform.getMutableOrNull(orb)
-      // 地形ができるまでは地面の高さに置く
-      if (transform) transform.position = Vector3.create(dropAt.x, dropAt.y + 0.5, dropAt.z)
-    }
-
-    const heldFor = Math.round((now - state.pickedUpAt) / 100) / 10
-
-    const mutable = Orb.getMutableOrNull(orb)
-    if (!mutable) continue
-    const index = mutable.index
-    mutable.carrier = ''
-    mutable.pickedUpAt = 0
-    room.send('dropped', { index })
-    publishParticipants()
-    console.log('[SERVER] orb', index, 'dropped after', heldFor, 'sec')
   }
 }
 

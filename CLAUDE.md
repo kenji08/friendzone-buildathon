@@ -8,11 +8,17 @@ SDK7の一般的な作法・落とし穴は `~/.claude/skills/decentraland-sdk7/
 
 ## 起動
 
-**`NODE_OPTIONS` を付けないとマルチプレイヤーサーバーが起動しない**（プレビュー自体は動くので気づきにくい）。
+**Node 24 系が必要**（`@dcl/hammurabi-server` の対応は 22 か 24 のみ。26 では起動を拒否される）。
 
 ```bash
-NODE_OPTIONS="--experimental-require-module" npm run start
+node -v          # v24.x であること
+npm run start
 ```
+
+Node 22.2 では ESM を require できずマルチプレイヤーサーバーだけが落ちるため
+`NODE_OPTIONS="--experimental-require-module"` が必要だったが、24 では不要。
+デプロイ時の `Could not convert argument of type symbol to string`（undici 6 のバグ）も
+24 で解消する。
 
 アプリは**終了して数秒待ってから**一度だけ開く（手順の詳細はスキル側）。
 

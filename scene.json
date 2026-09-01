@@ -15,13 +15,13 @@
   "main": "bin/index.js",
   "tags": [],
   "scene": {
+    "base": "0,0",
     "parcels": [
       "0,0",
       "0,1",
       "1,0",
       "1,1"
-    ],
-    "base": "0,0"
+    ]
   },
   "spawnPoints": [
     {
@@ -50,10 +50,18 @@
   ],
   "featureToggles": {
     "voiceChat": "enabled",
-    "portableExperiences": "enabled"
+    "portableExperiences": "enabled",
+    "nearbyVoiceChat": "enabled"
   },
   "authoritativeMultiplayer": true,
   "worldConfiguration": {
     "name": "kenji.dcl.eth"
+  },
+  "creator": "",
+  "skyboxConfig": {},
+  "landscapeTerrain": true,
+  "source": {
+    "origin": "creator-hub",
+    "projectId": "f54be5f1-a5ca-460b-ad5b-bb9c6d493ceb"
   }
 }

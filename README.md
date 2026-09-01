@@ -29,16 +29,18 @@ Nothing needs a host or a scheduled event. Walk in at any time and play.
 
 ## Running locally
 
-Requires Node 18+ and the Decentraland desktop app.
+Requires **Node 24** and the Decentraland desktop app. The multiplayer server
+supports Node 22 and 24 only, and refuses to start on newer releases.
 
 ```bash
 npm install
-NODE_OPTIONS="--experimental-require-module" npm run start
+npm run start
 ```
 
-The `NODE_OPTIONS` flag is needed on Node versions below 22.12: the multiplayer
-server loads an ES module through `require`, which older releases refuse. Without
-it the preview still starts but the multiplayer server exits immediately.
+On Node 22.2 the multiplayer server exits on startup because it loads an ES
+module through `require`; run with `NODE_OPTIONS="--experimental-require-module"`
+if you are stuck on that version. The preview itself starts either way, so the
+failure is easy to miss — check the log for `Multiplayer Server exited`.
 
 Then quit the Decentraland app if it is running, wait a moment, and open:
 
