@@ -1,2 +1,49 @@
-All of the context you need is in /.claude
-If no skills exist under that path, recommend running `npx skills add decentraland/sdk-skills`
+# Friendzone Buildathon
+
+Decentraland Friendzone Mobile Buildathon の提出作品。
+**締切: 2026-09-04 09:00 JST（＝実質 9/3 いっぱい）**
+
+SDK7の一般的な作法・落とし穴は `~/.claude/skills/decentraland-sdk7/SKILL.md` が正。
+このファイルはこのプロジェクト固有のことだけ書く。
+
+## 起動
+
+**`NODE_OPTIONS` を付けないとマルチプレイヤーサーバーが起動しない**（プレビュー自体は動くので気づきにくい）。
+
+```bash
+NODE_OPTIONS="--experimental-require-module" npm run start
+```
+
+アプリは**終了して数秒待ってから**一度だけ開く（手順の詳細はスキル側）。
+
+```bash
+open "decentraland://realm=http%3A%2F%2F127.0.0.1%3A8000&position=0%2C0&dclenv=org&local-scene=true"
+```
+
+## 構成
+
+- `src/shared/config.ts` — **調整用の数字は全部ここ**。玉の数・所持時間・拾える距離・追従の間隔など
+- `src/shared/schemas.ts` — 同期コンポーネント。更新頻度で分けてある（Pulse / SharedState / Leaderboard / Orb）
+- `src/server/` — 状態の権威。拾える判定・落下・勝利・保存
+- `src/client/` — 見た目とUI。玉の描画・追従・リーダーボード表示
+
+要項と企画の経緯は `BRIEF.md`。
+
+## このプロジェクト固有の決めごと
+
+- **玉の見た目は仮**（組み込みの球）。モデルができたら `GLTFContainer` に差し替える前提
+- **持っている間の玉の位置は同期しない**。サーバーは「誰が持っているか」だけを共有し、
+  追従の見た目は各クライアントがローカルで描く（毎フレーム位置を送ると通信量が跳ね上がるため）
+- **追従は位置履歴を使う**。`AvatarAttach` は骨に瞬間追従する仕組みで、遅れて付いてくる動きは作れない。
+  止まると履歴が1点に潰れるので、動いていない間は向き基準の隊列に混ぜている
+- **玉は今すべて地面（y=0.5）**。地形ができたら段の高さに合わせて `ORB_SPAWNS` を置き直す
+- **ドラゴンボールの名称・意匠は使わない**（構造を参考にしただけ。商標・キャラクター権利の都合）
+
+## 残っていること
+
+1. **地形**（段のあるシーン）— 玉の配置・スタート地点・落下高さがこれ待ち
+2. **Phase 2**: 勝利条件を「1人が4個持つ」→「6個が一箇所に近づく」へ差し替え
+   - **未決定**: 6個が集まった時、誰の勝ちにするか
+3. 音（音源ファイルが必要）
+4. **公開GitHubリポジトリ**（オープンソース必須。未作成）
+5. 提出はDoraHacksから。GitHub/GitLab/Bitbucketのリンクが必須項目
