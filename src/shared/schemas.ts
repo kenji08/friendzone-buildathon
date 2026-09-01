@@ -11,6 +11,10 @@ export enum SyncId {
 export const HEARTBEAT_INTERVAL = 2
 export const HEARTBEAT_TIMEOUT = 6
 
+/** ラウンドの状態 */
+export const PHASE_PLAYING = 'playing'
+export const PHASE_INTERMISSION = 'intermission'
+
 /**
  * 球の状態。位置は Transform 側で持つ。
  * carrier が空文字なら地面に落ちている。誰かが持っていればそのウォレットアドレス。
@@ -25,17 +29,41 @@ export const Orb = engine.defineComponent('friendzone:Orb', {
   pickedUpAt: Schemas.Int64
 })
 
-/** 全員で共有する世界の状態 */
-export const SharedState = engine.defineComponent('friendzone:SharedState', {
-  /** サーバーの生存確認 */
-  heartbeat: Schemas.Int64,
-  /** これまでに決着した回数 */
-  rounds: Schemas.Int
+/**
+ * コンポーネントは更新頻度で分ける。
+ * 変更のたびにそのコンポーネントのデータ全体が送られるため、
+ * 2秒ごとに動く鼓動と、勝利時にしか変わらない記録を同居させると無駄が出る。
+ */
+
+/** サーバーの生存確認だけを載せる。2秒ごとに更新される */
+export const Pulse = engine.defineComponent('friendzone:Pulse', {
+  heartbeat: Schemas.Int64
 })
+
+/** ラウンドの進行。決着のたびにしか変わらない */
+export const SharedState = engine.defineComponent('friendzone:SharedState', {
+  rounds: Schemas.Int,
+  lastWinner: Schemas.String,
+  phase: Schemas.String,
+  /** 次のラウンドが始まる時刻。休憩中のカウントダウンに使う */
+  roundStartsAt: Schemas.Int64
+})
+
+/** 上位者の一覧。JSON文字列で持つ。勝利時にしか変わらない */
+export const Leaderboard = engine.defineComponent('friendzone:Leaderboard', {
+  json: Schemas.String
+})
+
+export type LeaderboardEntry = { address: string; name: string; wins: number }
 
 /** クライアントからの書き込みを一切受け付けない（サーバー権威） */
 export function protectState() {
   if (!isServer()) return
-  SharedState.validateBeforeChange((value) => value.senderAddress === AUTH_SERVER_PEER_ID)
-  Orb.validateBeforeChange((value) => value.senderAddress === AUTH_SERVER_PEER_ID)
+  const fromServer = (value: { senderAddress: string }) =>
+    value.senderAddress === AUTH_SERVER_PEER_ID
+
+  Pulse.validateBeforeChange(fromServer)
+  SharedState.validateBeforeChange(fromServer)
+  Leaderboard.validateBeforeChange(fromServer)
+  Orb.validateBeforeChange(fromServer)
 }

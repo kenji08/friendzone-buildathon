@@ -4,27 +4,53 @@ import { syncEntity } from '@dcl/sdk/network'
 import { Storage } from '@dcl/sdk/server'
 import {
   CARRY_DURATION,
+  CARRY_TO_WIN,
+  INTERMISSION_DURATION,
+  LEADERBOARD_KEEP,
+  LEADERBOARD_SIZE,
   MAX_CARRIED,
   ORB_COUNT,
   ORB_SPAWNS,
   PICKUP_RANGE
 } from '../shared/config'
 import { room } from '../shared/messages'
-import { HEARTBEAT_INTERVAL, Orb, SharedState, SyncId, protectState } from '../shared/schemas'
+import {
+  HEARTBEAT_INTERVAL,
+  Leaderboard,
+  LeaderboardEntry,
+  Orb,
+  PHASE_INTERMISSION,
+  PHASE_PLAYING,
+  Pulse,
+  SharedState,
+  SyncId,
+  protectState
+} from '../shared/schemas'
 
-const STORAGE_KEY = 'rounds'
+const ROUNDS_KEY = 'rounds'
+const BOARD_KEY = 'leaderboard'
+
+/** 表示名の上限。長すぎる名前でUIが壊れるのを防ぐ */
+const MAX_NAME_LENGTH = 18
 const SAVE_INTERVAL = 15
+const CARRY_CHECK_INTERVAL = 0.25
 
 let stateEntity = engine.addEntity()
 const orbs: Entity[] = []
+
+/**
+ * 勝利数の集計。メモリ上を正として扱い、決着のたびに保存する。
+ * サーバーは無人になると停止するので、起動時に必ず読み戻す。
+ */
+const wins = new Map<string, number>()
+
+/** アドレスごとの表示名。クライアントから受け取る */
+const names = new Map<string, string>()
 
 let sinceLastBeat = 0
 let sinceLastSave = 0
 let sinceLastCarryCheck = 0
 let dirty = false
-
-/** 落下判定を回す間隔（秒）。毎フレーム回す必要のない処理 */
-const CARRY_CHECK_INTERVAL = 0.25
 
 /**
  * 同期とメッセージ受付を同期的に立ち上げてから、保存データの復元を後追いで行う。
@@ -35,8 +61,19 @@ export function initServer() {
 
   stateEntity = engine.addEntity()
   Transform.create(stateEntity, { position: Vector3.create(0, 0, 0) })
-  SharedState.create(stateEntity, { heartbeat: Date.now(), rounds: 0 })
-  syncEntity(stateEntity, [SharedState.componentId], SyncId.SHARED_STATE)
+  Pulse.create(stateEntity, { heartbeat: Date.now() })
+  SharedState.create(stateEntity, {
+    rounds: 0,
+    lastWinner: '',
+    phase: PHASE_PLAYING,
+    roundStartsAt: 0
+  })
+  Leaderboard.create(stateEntity, { json: '[]' })
+  syncEntity(
+    stateEntity,
+    [Pulse.componentId, SharedState.componentId, Leaderboard.componentId],
+    SyncId.SHARED_STATE
+  )
 
   for (let i = 0; i < ORB_COUNT; i++) {
     const orb = engine.addEntity()
@@ -53,13 +90,28 @@ export function initServer() {
     tryPickup(data.index, context.from)
   })
 
+  // 名前は表示用のラベルとしてのみ使う。身元は context.from が正
+  room.onMessage('register', (data, context) => {
+    if (!context) return
+    const name = sanitizeName(data.name)
+    if (name === '') return
+
+    const address = context.from
+    if (names.get(address) === name) return
+
+    names.set(address, name)
+    if (wins.has(address)) publishLeaderboard()
+  })
+
   engine.addSystem(heartbeatSystem)
+  engine.addSystem(roundSystem)
   engine.addSystem(carryTimerSystem)
   engine.addSystem(saveSystem)
 
   console.log('[SERVER] ready with', ORB_COUNT, 'orbs')
 
   void restore()
+  void restoreBoard()
 }
 
 function spawnFor(index: number): Vector3 {
@@ -67,8 +119,14 @@ function spawnFor(index: number): Vector3 {
   return Vector3.create(p.x, p.y, p.z)
 }
 
+function phase(): string {
+  return SharedState.getOrNull(stateEntity)?.phase ?? PHASE_PLAYING
+}
+
 /** クライアントは位置を偽装できるので、拾えるかどうかはサーバー側の座標で判定する */
 function tryPickup(index: number, from: string) {
+  if (phase() !== PHASE_PLAYING) return
+
   const orb = orbs[index]
   if (!orb) return
 
@@ -91,6 +149,66 @@ function tryPickup(index: number, from: string) {
 
   room.send('pickedUp', { index, carrier: from })
   console.log('[SERVER] orb', index, 'picked up by', from)
+
+  if (carriedCount(from) >= CARRY_TO_WIN) declareWin(from)
+}
+
+/**
+ * Phase 1 の暫定ルール。1人が規定数を同時に持てば決着。
+ * 決着したら休憩に入り、そのあいだに球を初期位置へ戻す。
+ */
+function declareWin(winner: string) {
+  const state = SharedState.getMutableOrNull(stateEntity)
+  if (!state) return
+
+  state.rounds += 1
+  state.lastWinner = winner
+  state.phase = PHASE_INTERMISSION
+  state.roundStartsAt = Date.now() + INTERMISSION_DURATION * 1000
+
+  const total = (wins.get(winner) ?? 0) + 1
+  wins.set(winner, total)
+  publishLeaderboard()
+
+  console.log('[SERVER] win by', winner, '— round', state.rounds, '/ wins', total)
+  room.send('won', { winner, rounds: state.rounds })
+
+  releaseOrbs()
+  void saveBoard()
+  void saveRounds()
+}
+
+/** 休憩が明けたら球を配置し直して次のラウンドを始める */
+function roundSystem() {
+  const state = SharedState.getOrNull(stateEntity)
+  if (!state || state.phase !== PHASE_INTERMISSION) return
+  if (Date.now() < state.roundStartsAt) return
+
+  resetOrbs()
+
+  const mutable = SharedState.getMutableOrNull(stateEntity)
+  if (!mutable) return
+  mutable.phase = PHASE_PLAYING
+  mutable.roundStartsAt = 0
+  console.log('[SERVER] round', mutable.rounds + 1, 'begins')
+}
+
+/** 持ち主だけ解除する。位置は休憩明けに戻す */
+function releaseOrbs() {
+  for (const orb of orbs) {
+    const state = Orb.getMutableOrNull(orb)
+    if (!state) continue
+    state.carrier = ''
+    state.pickedUpAt = 0
+  }
+}
+
+/** 全部の球を初期位置に戻す */
+function resetOrbs() {
+  for (let i = 0; i < orbs.length; i++) {
+    const transform = Transform.getMutableOrNull(orbs[i])
+    if (transform) transform.position = spawnFor(i)
+  }
 }
 
 /**
@@ -115,9 +233,8 @@ function carryTimerSystem(dt: number) {
     const dropAt = positionOf(state.carrier)
     if (dropAt) {
       const transform = Transform.getMutableOrNull(orb)
-      if (transform) {
-        transform.position = Vector3.create(dropAt.x, dropAt.y + 0.6, dropAt.z)
-      }
+      // 地形ができるまでは地面の高さに置く
+      if (transform) transform.position = Vector3.create(dropAt.x, dropAt.y + 0.5, dropAt.z)
     }
 
     const heldFor = Math.round((now - state.pickedUpAt) / 100) / 10
@@ -151,15 +268,38 @@ function positionOf(address: string): Vector3 | null {
   return null
 }
 
+/** 勝利数の多い順に並べる */
+function ranking(): LeaderboardEntry[] {
+  const ranked: LeaderboardEntry[] = []
+  for (const [address, count] of wins) {
+    ranked.push({ address, name: names.get(address) ?? '', wins: count })
+  }
+  ranked.sort((a, b) => b.wins - a.wins)
+  return ranked
+}
+
+/** 上位者だけを載せる。全員分を送ると通信量が膨らむ */
+function publishLeaderboard() {
+  const board = Leaderboard.getMutableOrNull(stateEntity)
+  if (!board) return
+  board.json = JSON.stringify(ranking().slice(0, LEADERBOARD_SIZE))
+}
+
+/** 名前は表示用なので、長さと改行だけ整える */
+function sanitizeName(raw: string): string {
+  const cleaned = raw.replace(/[\r\n\t]/g, ' ').trim()
+  return cleaned.length > MAX_NAME_LENGTH ? cleaned.slice(0, MAX_NAME_LENGTH) : cleaned
+}
+
 /** クライアントがサーバーの生存を判断するための鼓動 */
 function heartbeatSystem(dt: number) {
   sinceLastBeat += dt
   if (sinceLastBeat < HEARTBEAT_INTERVAL) return
   sinceLastBeat = 0
 
-  const state = SharedState.getMutableOrNull(stateEntity)
-  if (!state) return
-  state.heartbeat = Date.now()
+  const pulse = Pulse.getMutableOrNull(stateEntity)
+  if (!pulse) return
+  pulse.heartbeat = Date.now()
 }
 
 function saveSystem(dt: number) {
@@ -180,7 +320,7 @@ function saveSystem(dt: number) {
  */
 async function restore() {
   try {
-    const raw = await Storage.get<string>(STORAGE_KEY)
+    const raw = await Storage.get<string>(ROUNDS_KEY)
 
     if (raw === null || raw === undefined || raw === '') {
       await seed()
@@ -201,7 +341,7 @@ async function restore() {
 }
 
 async function seed() {
-  const ok = await Storage.set(STORAGE_KEY, '0')
+  const ok = await Storage.set(ROUNDS_KEY, '0')
   console.log('[SERVER] seeded rounds key:', ok)
 }
 
@@ -210,11 +350,50 @@ async function saveRounds() {
   if (!state) return
 
   // set() は例外を投げず false を返す。戻り値を捨てると保存漏れが無言で起きる
-  const ok = await Storage.set(STORAGE_KEY, String(state.rounds))
+  const ok = await Storage.set(ROUNDS_KEY, String(state.rounds))
   if (!ok) {
     console.log('[SERVER] storage write failed — will retry')
     dirty = true
     return
   }
   console.log('[SERVER] saved rounds =', state.rounds)
+}
+
+/**
+ * リーダーボードは世界全体の記録なので World 側に保存する。
+ * サーバーは無人になると停止するため、これが無いと再訪のたびに消える。
+ */
+async function saveBoard() {
+  try {
+    const payload = JSON.stringify(ranking().slice(0, LEADERBOARD_KEEP))
+    const ok = await Storage.set(BOARD_KEY, payload)
+    if (!ok) console.log('[SERVER] failed to save leaderboard')
+  } catch (e) {
+    console.log('[SERVER] error saving leaderboard:', e)
+  }
+}
+
+async function restoreBoard() {
+  try {
+    const raw = await Storage.get<string>(BOARD_KEY)
+    if (raw === null || raw === undefined || raw === '') {
+      await Storage.set(BOARD_KEY, '[]')
+      return
+    }
+
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return
+
+    for (const entry of parsed as LeaderboardEntry[]) {
+      if (!entry || typeof entry.address !== 'string') continue
+      wins.set(entry.address, entry.wins)
+      if (entry.name) names.set(entry.address, entry.name)
+    }
+
+    publishLeaderboard()
+    console.log('[SERVER] restored leaderboard with', wins.size, 'players')
+  } catch (e) {
+    console.log('[SERVER] error reading leaderboard:', e)
+    await Storage.set(BOARD_KEY, '[]')
+  }
 }

@@ -7,8 +7,29 @@ import { Vector3 } from '@dcl/sdk/math'
 /** 世界に置く球の総数 */
 export const ORB_COUNT = 11
 
-/** 決着に必要な数 */
+/**
+ * 決着に必要な数。
+ * Phase 2 で「6個が一箇所に近づいたら決着」に差し替える予定の値。
+ */
 export const ORBS_TO_WIN = 6
+
+/**
+ * Phase 1 の暫定ルール。1人がこの数を同時に持てば勝ち。
+ * 複数人のルールへ移る時に、この判定ごと置き換える。
+ */
+export const CARRY_TO_WIN = 4
+
+/** 勝利表示を出しておく秒数 */
+export const WIN_BANNER_DURATION = 4
+
+/** 決着から次のラウンドが始まるまでの秒数 */
+export const INTERMISSION_DURATION = 60
+
+/** リーダーボードに表示する人数 */
+export const LEADERBOARD_SIZE = 5
+
+/** 保存しておく人数。表示より多めに持っておく */
+export const LEADERBOARD_KEEP = 20
 
 /** 拾ってから手を離れるまでの秒数 */
 export const CARRY_DURATION = 30
@@ -44,23 +65,19 @@ export const TRAIL_SPACING_DISTANCE = 0.9
 /** 球が光り始める距離。これより近いと明るくなる */
 export const GLOW_RANGE = 12
 
-/**
- * 球の初期配置。段のあるシーンを想定して3層に散らしてある。
- * 地形ができたら、それに合わせて置き直す。
- */
+/** 球の初期配置 */
 export const ORB_SPAWNS: Vector3[] = [
-  // 1層目（地面）
-  Vector3.create(6, 0.6, 7),
-  Vector3.create(25, 0.6, 9),
-  Vector3.create(11, 0.6, 26),
-  Vector3.create(27, 0.6, 24),
-  // 2層目
-  Vector3.create(9, 4.6, 15),
-  Vector3.create(22, 4.6, 6),
-  Vector3.create(17, 4.6, 28),
-  Vector3.create(29, 4.6, 17),
-  // 3層目
-  Vector3.create(13, 8.6, 11),
-  Vector3.create(24, 8.6, 20),
-  Vector3.create(6, 8.6, 21)
+  // 地形ができるまでは全部を地面の高さに置く。
+  // 段ができたら、その段の高さに合わせて置き直す。
+  Vector3.create(5, 0.5, 6),
+  Vector3.create(26, 0.5, 7),
+  Vector3.create(9, 0.5, 25),
+  Vector3.create(27, 0.5, 26),
+  Vector3.create(16, 0.5, 5),
+  Vector3.create(5, 0.5, 16),
+  Vector3.create(28, 0.5, 16),
+  Vector3.create(16, 0.5, 28),
+  Vector3.create(10, 0.5, 11),
+  Vector3.create(23, 0.5, 12),
+  Vector3.create(12, 0.5, 21)
 ]

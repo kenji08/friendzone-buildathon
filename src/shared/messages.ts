@@ -8,10 +8,16 @@ import { registerMessages } from '@dcl/sdk/network'
 export const Messages = {
   // Client -> Server
   pickup: Schemas.Map({ index: Schemas.Int }),
+  /**
+   * 表示名を伝える。サーバー側からは名前を読めないため。
+   * 身元は context.from（検証済みアドレス）を使い、名前は表示用のラベルとしてのみ扱う。
+   */
+  register: Schemas.Map({ name: Schemas.String }),
 
   // Server -> Client
   pickedUp: Schemas.Map({ index: Schemas.Int, carrier: Schemas.String }),
-  dropped: Schemas.Map({ index: Schemas.Int })
+  dropped: Schemas.Map({ index: Schemas.Int }),
+  won: Schemas.Map({ winner: Schemas.String, rounds: Schemas.Int })
 }
 
 export const room = registerMessages(Messages)
