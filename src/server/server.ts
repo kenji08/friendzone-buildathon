@@ -10,11 +10,11 @@ import {
   MAX_CARRIED,
   MAX_PARTICIPANTS,
   ORB_COUNT,
-  ORB_SPAWNS,
   PICKUP_RANGE,
   RESULT_DURATION
 } from '../shared/config'
 import { room } from '../shared/messages'
+import { onGround, pickSpawns } from '../shared/spawns'
 import {
   HEARTBEAT_INTERVAL,
   Leaderboard,
@@ -94,6 +94,8 @@ export function initServer() {
     SyncId.SHARED_STATE
   )
 
+  rollSpawns()
+
   for (let i = 0; i < ORB_COUNT; i++) {
     const orb = engine.addEntity()
     Transform.create(orb, { position: spawnFor(i) })
@@ -144,8 +146,15 @@ export function initServer() {
   void restoreBoard()
 }
 
+/** そのラウンドの配置。ラウンドが始まるたびに引き直す */
+let spawns: Vector3[] = []
+
+function rollSpawns() {
+  spawns = pickSpawns(ORB_COUNT)
+}
+
 function spawnFor(index: number): Vector3 {
-  const p = ORB_SPAWNS[index % ORB_SPAWNS.length]
+  const p = spawns[index] ?? spawns[0]
   return Vector3.create(p.x, p.y, p.z)
 }
 
@@ -263,7 +272,7 @@ function dropCarriedBy(address: string) {
 
     if (dropAt) {
       const transform = Transform.getMutableOrNull(orb)
-      if (transform) transform.position = Vector3.create(dropAt.x, dropAt.y + 0.5, dropAt.z)
+      if (transform) transform.position = onGround(dropAt.x, dropAt.z)
     }
 
     const mutable = Orb.getMutableOrNull(orb)
@@ -365,8 +374,9 @@ function releaseOrbs() {
   }
 }
 
-/** 全部の球を初期位置に戻す */
+/** 球を配置し直す。ラウンドごとに場所が変わる */
 function resetOrbs() {
+  rollSpawns()
   for (let i = 0; i < orbs.length; i++) {
     const transform = Transform.getMutableOrNull(orbs[i])
     if (transform) transform.position = spawnFor(i)

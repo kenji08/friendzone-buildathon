@@ -16,6 +16,7 @@ import {
   SharedState
 } from '../shared/schemas'
 import { initOrbs } from './orbs'
+import { initTerrain } from './terrain'
 import { sampleSystem } from './trail'
 
 let elapsed = 0
@@ -54,6 +55,7 @@ export function initClient() {
     console.log('[CLIENT] join rejected:', data.reason)
   })
 
+  initTerrain()
   engine.addSystem(sampleSystem)
   initOrbs()
   engine.addSystem(trackServerSystem)

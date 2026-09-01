@@ -1,5 +1,3 @@
-import { Vector3 } from '@dcl/sdk/math'
-
 /**
  * 触りながら調整する数字。ここだけ見れば全部変えられるようにまとめてある。
  */
@@ -84,28 +82,11 @@ export const TRAIL_SPACING_DISTANCE = 0.9
 /** 球が光り始める距離。これより近いと明るくなる */
 export const GLOW_RANGE = 12
 
-/** 球の初期配置 */
-export const ORB_SPAWNS: Vector3[] = [
-  // 地形ができるまでは全部を地面の高さに置く。
-  // 段ができたら、その段の高さに合わせて置き直す。
-  Vector3.create(5, 0.5, 6),
-  Vector3.create(26, 0.5, 7),
-  Vector3.create(9, 0.5, 25),
-  Vector3.create(27, 0.5, 26),
-  Vector3.create(16, 0.5, 5),
-  Vector3.create(5, 0.5, 16),
-  Vector3.create(28, 0.5, 16),
-  Vector3.create(16, 0.5, 28),
-  Vector3.create(10, 0.5, 11),
-  Vector3.create(23, 0.5, 12),
-  Vector3.create(12, 0.5, 21),
-  Vector3.create(21, 0.5, 22),
-  Vector3.create(7, 0.5, 29),
-  Vector3.create(29, 0.5, 4),
-  Vector3.create(3, 0.5, 11),
-  Vector3.create(20, 0.5, 3),
-  Vector3.create(14, 0.5, 18),
-  Vector3.create(19, 0.5, 14),
-  Vector3.create(8, 0.5, 19),
-  Vector3.create(25, 0.5, 30)
-]
+/** 球を置く範囲。シーンの端に寄りすぎないよう内側に取る */
+export const SPAWN_AREA = { min: 3, max: 29 }
+
+/** 球を地面からどれだけ浮かせるか（メートル） */
+export const ORB_HEIGHT = 0.6
+
+/** 球どうしを離す最小距離。固まって湧くと探す面白さが消える */
+export const MIN_ORB_SEPARATION = 3.5
