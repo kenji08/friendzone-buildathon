@@ -8,6 +8,7 @@ import {
   getLeaderboard,
   getRoster,
   getRounds,
+  didIWin,
   getWinnerName,
   isPlaying,
   isReady,
@@ -271,40 +272,90 @@ const joinButton = () => {
 }
 
 /** 勝利画像は透過PNG。2のべき乗の寸法（1024x512）に整えてある */
-const winBanner = () =>
-  showingWin() ? (
+/**
+ * 決着の表示。勝った人には画像を、それ以外の人には誰が勝ったかを出す。
+ * 負けた人にまで YOU WIN が出ていると意味が通らない。
+ */
+const winBanner = () => {
+  if (!showingWin()) return null
+  return didIWin() ? winnerBanner() : loserBanner()
+}
+
+/** 勝利画像は透過PNG。2のべき乗の寸法（1024x512）に整えてある */
+const winnerBanner = () => (
+  <UiEntity
+    uiTransform={{
+      positionType: 'absolute',
+      position: { top: '0%', left: '0%' },
+      width: '100%',
+      height: '100%',
+      justifyContent: 'center',
+      alignItems: 'center'
+    }}
+  >
+    <UiEntity
+      uiTransform={{ width: '60%', height: '30%' }}
+      uiBackground={{
+        textureMode: 'stretch',
+        texture: { src: 'assets/ui/youwin.png' }
+      }}
+    />
     <UiEntity
       uiTransform={{
         positionType: 'absolute',
-        position: { top: '0%', left: '0%' },
+        position: { top: '66%', left: '0%' },
         width: '100%',
-        height: '100%',
-        justifyContent: 'center',
-        alignItems: 'center'
+        height: 34,
+        justifyContent: 'center'
       }}
     >
-      <UiEntity
-        uiTransform={{ width: '60%', height: '30%' }}
-        uiBackground={{
-          textureMode: 'stretch',
-          texture: { src: 'assets/ui/youwin.png' }
-        }}
+      <Label
+        value={`Round ${getRounds()}`}
+        fontSize={22}
+        color={Color4.White()}
+        textAlign="middle-center"
       />
-      <UiEntity
-        uiTransform={{
-          positionType: 'absolute',
-          position: { top: '66%', left: '0%' },
-          width: '100%',
-          height: 34,
-          justifyContent: 'center'
-        }}
-      >
-        <Label
-          value={`${getWinnerName()}  ·  Round ${getRounds()}`}
-          fontSize={22}
-          color={Color4.White()}
-          textAlign="middle-center"
-        />
-      </UiEntity>
     </UiEntity>
-  ) : null
+  </UiEntity>
+)
+
+/**
+ * 勝てなかった人向け。誰に負けたかが分かる方が、次に挑む理由になる。
+ */
+const loserBanner = () => (
+  <UiEntity
+    uiTransform={{
+      positionType: 'absolute',
+      position: { top: '0%', left: '0%' },
+      width: '100%',
+      height: '100%',
+      flexDirection: 'column',
+      justifyContent: 'center',
+      alignItems: 'center'
+    }}
+  >
+    <UiEntity
+      uiTransform={{ width: 720, height: 96, justifyContent: 'center', alignItems: 'center' }}
+      uiBackground={{ color: Color4.create(0, 0, 0, 0.6) }}
+    >
+      <Label
+        value={`${getWinnerName().toUpperCase()} WINS`}
+        fontSize={64}
+        color={Color4.White()}
+        textAlign="middle-center"
+        uiTransform={{ width: '100%', height: '100%' }}
+      />
+    </UiEntity>
+    <UiEntity
+      uiTransform={{ width: 720, height: 48, margin: { top: 10 }, justifyContent: 'center' }}
+    >
+      <Label
+        value="NEXT ROUND"
+        fontSize={30}
+        color={Color4.create(1, 1, 1, 0.75)}
+        textAlign="middle-center"
+        uiTransform={{ width: '100%', height: '100%' }}
+      />
+    </UiEntity>
+  </UiEntity>
+)

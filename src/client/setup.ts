@@ -15,7 +15,8 @@ import {
   Pulse,
   SharedState
 } from '../shared/schemas'
-import { initOrbs } from './orbs'
+import { initAudio, playPickup, playWin } from './audio'
+import { carriedByMe, initOrbs } from './orbs'
 import { initTerrain } from './terrain'
 import { sampleSystem } from './trail'
 
@@ -38,6 +39,8 @@ let selfAddress = ''
 let winnerName = ''
 let rejectedUntil = 0
 let rejectReason = ''
+let wonBySelf = false
+let lastCarried = 0
 
 export function initClient() {
   console.log('[CLIENT] starting…')
@@ -45,7 +48,9 @@ export function initClient() {
   room.onMessage('won', (data) => {
     rounds = data.rounds
     winnerName = data.name || shorten(data.winner)
+    wonBySelf = selfAddress !== '' && data.winner.toLowerCase() === selfAddress
     bannerUntil = elapsed + WIN_BANNER_DURATION
+    playWin()
     console.log('[CLIENT] win by', winnerName, '— round', data.rounds)
   })
 
@@ -56,8 +61,10 @@ export function initClient() {
   })
 
   initTerrain()
+  initAudio()
   engine.addSystem(sampleSystem)
   initOrbs()
+  engine.addSystem(pickupSoundSystem)
   engine.addSystem(trackServerSystem)
   engine.addSystem(registerSystem)
 }
@@ -122,6 +129,13 @@ function trackServerSystem(dt: number) {
   serverOnline = lastBeat !== 0 && elapsed - lastBeatSeenAt < HEARTBEAT_TIMEOUT
 }
 
+/** 手持ちが増えた瞬間に鳴らす。取得はサーバーが決めるので、結果を見て判断する */
+function pickupSoundSystem() {
+  const carried = carriedByMe()
+  if (carried > lastCarried) playPickup()
+  lastCarried = carried
+}
+
 function parseJson<T>(json: string): T[] {
   try {
     const parsed = JSON.parse(json)
@@ -178,6 +192,11 @@ export function amParticipating(): boolean {
 
 export function getWinnerName(): string {
   return winnerName
+}
+
+/** 直近の勝者が自分かどうか。勝者と他の人で表示を変えるために使う */
+export function didIWin(): boolean {
+  return wonBySelf
 }
 
 /** 参加を断られた時のメッセージ。数秒だけ出す */
