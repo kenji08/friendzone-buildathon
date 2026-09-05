@@ -3,6 +3,9 @@ import { Vector3 } from '@dcl/sdk/math'
 import { syncEntity } from '@dcl/sdk/network'
 import { Storage } from '@dcl/sdk/server'
 import {
+  BUMP_COOLDOWN,
+  BUMP_RADIUS,
+  BUMP_SCATTER,
   CARRY_TO_WIN,
   JOIN_WINDOW,
   LEADERBOARD_KEEP,
@@ -14,6 +17,7 @@ import {
   RESULT_DURATION
 } from '../shared/config'
 import { room } from '../shared/messages'
+import { SPAWN_AREA } from '../shared/config'
 import { onGround, pickSpawns } from '../shared/spawns'
 import {
   HEARTBEAT_INTERVAL,
@@ -39,6 +43,9 @@ const BOARD_KEY = 'leaderboard'
 const MAX_NAME_LENGTH = 18
 const SAVE_INTERVAL = 15
 
+/** 接触の判定を回す間隔（秒）。毎フレーム全員分を突き合わせる必要はない */
+const BUMP_CHECK_INTERVAL = 0.2
+
 let stateEntity = engine.addEntity()
 const orbs: Entity[] = []
 
@@ -61,6 +68,10 @@ const participants = new Set<string>()
 /** 次にフェーズが切り替わる時刻 */
 let phaseEndsAt = 0
 
+/** 誰と誰が、いつぶつかったか。同じ組で連続して発火させないために持つ */
+const lastBump = new Map<string, number>()
+
+let sinceLastBump = 0
 let sinceLastBeat = 0
 let sinceLastSave = 0
 let dirty = false
@@ -136,6 +147,7 @@ export function initServer() {
   })
 
   engine.addSystem(heartbeatSystem)
+  engine.addSystem(bumpSystem)
   engine.addSystem(presenceSystem)
   engine.addSystem(roundSystem)
   engine.addSystem(saveSystem)
@@ -313,6 +325,87 @@ function presenceSystem() {
   if (!changed) return
   publishParticipants()
   if (participants.size === 0) backToWaiting()
+}
+
+/**
+ * 参加者同士がぶつかったら、多く持っている方が1個落とす。
+ *
+ * どちらが「ぶつけた側」かはサーバーからは判定できないので、
+ * 持っている数で決める。先行している人ほど狙われる形になり、
+ * 差が開いたまま終わらない。
+ */
+function bumpSystem(dt: number) {
+  sinceLastBump += dt
+  if (sinceLastBump < BUMP_CHECK_INTERVAL) return
+  sinceLastBump = 0
+
+  if (phase() !== PHASE_PLAYING) return
+  if (participants.size < 2) return
+
+  const positions = new Map<string, Vector3>()
+  for (const address of participants) {
+    const p = positionOf(address)
+    if (p) positions.set(address, p)
+  }
+
+  const now = Date.now()
+  const addresses = Array.from(positions.keys())
+
+  for (let i = 0; i < addresses.length; i++) {
+    for (let k = i + 1; k < addresses.length; k++) {
+      const a = addresses[i]
+      const b = addresses[k]
+
+      const pa = positions.get(a)
+      const pb = positions.get(b)
+      if (!pa || !pb) continue
+      if (Vector3.distance(pa, pb) > BUMP_RADIUS) continue
+
+      const key = a < b ? `${a}|${b}` : `${b}|${a}`
+      if (now - (lastBump.get(key) ?? 0) < BUMP_COOLDOWN * 1000) continue
+      lastBump.set(key, now)
+
+      const countA = carriedCount(a)
+      const countB = carriedCount(b)
+
+      // 同数なら両方。そうでなければ多い方だけが落とす
+      if (countA >= countB && countA > 0) scatterOne(a)
+      if (countB >= countA && countB > 0) scatterOne(b)
+    }
+  }
+}
+
+/** 持っている球を1つ、少し離れた場所へ弾き飛ばす */
+function scatterOne(address: string) {
+  for (const orb of orbs) {
+    const state = Orb.getOrNull(orb)
+    if (!state || state.carrier !== address) continue
+
+    const from = positionOf(address)
+    if (from) {
+      const angle = Math.random() * Math.PI * 2
+      const x = clampToArea(from.x + Math.cos(angle) * BUMP_SCATTER)
+      const z = clampToArea(from.z + Math.sin(angle) * BUMP_SCATTER)
+
+      const transform = Transform.getMutableOrNull(orb)
+      if (transform) transform.position = onGround(x, z)
+    }
+
+    const mutable = Orb.getMutableOrNull(orb)
+    if (!mutable) return
+    const index = mutable.index
+    mutable.carrier = ''
+    mutable.pickedUpAt = 0
+
+    room.send('dropped', { index })
+    publishParticipants()
+    console.log('[SERVER] bump: ', names.get(address) ?? address, 'dropped orb', index)
+    return // 1回につき1個だけ
+  }
+}
+
+function clampToArea(v: number): number {
+  return Math.min(SPAWN_AREA.max, Math.max(SPAWN_AREA.min, v))
 }
 
 /** 参加者の一覧を配る。参加・離脱・増減の時だけ更新する */

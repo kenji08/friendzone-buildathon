@@ -185,8 +185,8 @@ const rules = () => {
   const lines = [
     `Orbs brighten as you get close — walk into one to pick it up.`,
     `What you carry trails behind you for everyone to see.`,
-    `Collect ${CARRY_TO_WIN} to win the round.`,
-    `Up to ${MAX_PARTICIPANTS} players per round.`
+    `Bump into another player and whoever holds more drops one.`,
+    `Collect ${CARRY_TO_WIN} to win the round.`
   ]
 
   return (
