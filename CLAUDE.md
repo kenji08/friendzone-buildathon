@@ -26,6 +26,19 @@ Node 22.2 では ESM を require できずマルチプレイヤーサーバー�
 open "decentraland://realm=http%3A%2F%2F127.0.0.1%3A8000&position=0%2C0&dclenv=org&local-scene=true"
 ```
 
+## デプロイ
+
+```bash
+npm run deploy -- --target-content https://worlds-content-server.decentraland.org
+```
+
+ブラウザが開くのでウォレットで署名する。デプロイ先は `kenji.dcl.eth`。
+
+**`npm install` の直後は、先に `sdk-commands` へ修正を当て直すこと。**
+`node_modules/@dcl/sdk-commands/dist/linker-dapp/routes.js` の `/auth/(.*)` ハンドラが
+受信ヘッダーをスプレッドしており、`Headers` オブジェクトの `Symbol(map)` まで複製して
+`fetch` が落ちる（`Proxy error: ... is a symbol`）。当て方はスキル側に記載。
+
 ## 構成
 
 - `src/shared/config.ts` — **調整用の数字は全部ここ**。玉の数・所持時間・拾える距離・追従の間隔など
