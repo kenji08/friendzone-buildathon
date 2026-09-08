@@ -1,6 +1,6 @@
 import { engine } from '@dcl/sdk/ecs'
 import { getPlayer } from '@dcl/sdk/src/players'
-import { WIN_BANNER_DURATION } from '../shared/config'
+import { COUNTDOWN_LEAD, WIN_BANNER_DURATION } from '../shared/config'
 import { room } from '../shared/messages'
 import {
   HEARTBEAT_TIMEOUT,
@@ -15,7 +15,7 @@ import {
   Pulse,
   SharedState
 } from '../shared/schemas'
-import { initAudio, playPickup, playWin } from './audio'
+import { initAudio, playCountdown, playPickup, playWin } from './audio'
 import { carriedByMe, initOrbs } from './orbs'
 import { initTerrain } from './terrain'
 import { sampleSystem } from './trail'
@@ -41,6 +41,7 @@ let rejectedUntil = 0
 let rejectReason = ''
 let wonBySelf = false
 let lastCarried = 0
+let countdownPlayed = false
 
 export function initClient() {
   console.log('[CLIENT] starting…')
@@ -65,6 +66,7 @@ export function initClient() {
   engine.addSystem(sampleSystem)
   initOrbs()
   engine.addSystem(pickupSoundSystem)
+  engine.addSystem(countdownSystem)
   engine.addSystem(trackServerSystem)
   engine.addSystem(registerSystem)
 }
@@ -127,6 +129,24 @@ function trackServerSystem(dt: number) {
   }
 
   serverOnline = lastBeat !== 0 && elapsed - lastBeatSeenAt < HEARTBEAT_TIMEOUT
+}
+
+/**
+ * 開始の合図。音源が4秒のカウントダウンなので、開始のちょうど4秒前に鳴らす。
+ * ラウンドごとに一度だけ。
+ */
+function countdownSystem() {
+  if (phase !== PHASE_STARTING) {
+    countdownPlayed = false
+    return
+  }
+  if (countdownPlayed || roundStartsAt === 0) return
+
+  const remaining = (roundStartsAt - Date.now()) / 1000
+  if (remaining > COUNTDOWN_LEAD || remaining <= 0) return
+
+  countdownPlayed = true
+  playCountdown()
 }
 
 /** 手持ちが増えた瞬間に鳴らす。取得はサーバーが決めるので、結果を見て判断する */

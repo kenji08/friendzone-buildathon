@@ -8,3 +8,6 @@ yarn-debug.log*
 yarn-error.log*
 # 企画の検討経緯。公開リポジトリには載せない
 BRIEF.md
+
+# 変換の中間生成物
+build/

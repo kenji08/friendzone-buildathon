@@ -29,6 +29,9 @@ export const WIN_BANNER_DURATION = 4
 /** 最初の参加者が出てから、ラウンドが始まるまでの猶予（秒）。他の人が入る余地 */
 export const JOIN_WINDOW = 20
 
+/** 開始のカウントダウン音の長さ（秒）。この秒数だけ手前から鳴らす */
+export const COUNTDOWN_LEAD = 4
+
 /** 結果表示を出しておく秒数 */
 export const RESULT_DURATION = 6
 

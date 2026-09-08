@@ -1,5 +1,5 @@
-import { Entity, Material, MeshRenderer, Transform, engine } from '@dcl/sdk/ecs'
-import { Color3, Color4, Vector3 } from '@dcl/sdk/math'
+import { Entity, GltfContainer, Transform, engine } from '@dcl/sdk/ecs'
+import { Quaternion, Vector3 } from '@dcl/sdk/math'
 import { getPlayer } from '@dcl/sdk/src/players'
 import { GLOW_RANGE, PICKUP_RADIUS } from '../shared/config'
 import { room } from '../shared/messages'
@@ -32,21 +32,17 @@ export function initOrbs() {
   if (player) selfAddress = player.userId.toLowerCase()
 
   engine.addSystem(orbVisualSystem)
+  engine.addSystem(spinSystem)
 }
 
-/** サーバーから届いた球それぞれに、見た目を用意する */
+/** サーバーから届いた音符それぞれに、見た目を用意する */
 function ensureVisual(index: number): Entity {
   const existing = visuals.get(index)
   if (existing) return existing
 
   const visual = engine.addEntity()
-  Transform.create(visual, { scale: Vector3.create(0.7, 0.7, 0.7) })
-  MeshRenderer.setSphere(visual)
-  Material.setPbrMaterial(visual, {
-    albedoColor: Color4.create(1, 0.75, 0.2, 1),
-    emissiveColor: Color3.create(1, 0.6, 0.1),
-    emissiveIntensity: 0.2
-  })
+  Transform.create(visual, { scale: Vector3.create(1, 1, 1) })
+  GltfContainer.create(visual, { src: 'assets/models/note.glb' })
 
   visuals.set(index, visual)
   return visual
@@ -74,7 +70,7 @@ function orbVisualSystem() {
     if (orb.carrier === '') {
       const worldPos = Transform.getOrNull(entity)?.position
       if (worldPos) visualTransform.position = worldPos
-      setGlow(visual, selfPos, worldPos)
+      setLiveliness(visual, selfPos, worldPos)
 
       // 手放されたら、また要求できるようにする
       requested.delete(orb.index)
@@ -95,29 +91,40 @@ function orbVisualSystem() {
     const trail = trailPosition(carrier, rank)
     if (trail) visualTransform.position = trail
 
-    setEmissive(visual, 0.9)
+    // 持たれている間は常に速く回す
+    nearness.set(visual, 1)
   }
 }
 
-/** 近づくほど強く光らせる。探すことを視点操作ではなく移動で成立させるため */
-function setGlow(visual: Entity, from: Vector3 | undefined, to: Vector3 | undefined) {
+/**
+ * 近づくほど速く回す。
+ *
+ * 取り込んだモデルのマテリアルはコードから変えられないため、
+ * 光の強さでは距離を表せない。代わりに回転の速さと上下の揺れで示す。
+ */
+function setLiveliness(visual: Entity, from: Vector3 | undefined, to: Vector3 | undefined) {
   if (!from || !to) return
   const distance = Vector3.distance(from, to)
   const closeness = Math.max(0, Math.min(1, 1 - distance / GLOW_RANGE))
-  setEmissive(visual, 0.15 + closeness * closeness * 1.6)
+  nearness.set(visual, closeness)
 }
 
-/** 直前に書き込んだ値。差がない時は書き込まない（毎フレームの無駄を避ける） */
-const lastEmissive = new Map<Entity, number>()
+/** 各音符が今どれだけ近いか。回転の速さに使う */
+const nearness = new Map<Entity, number>()
 
-function setEmissive(visual: Entity, intensity: number) {
-  const previous = lastEmissive.get(visual)
-  if (previous !== undefined && Math.abs(previous - intensity) < 0.05) return
+let spin = 0
 
-  const material = Material.getMutableOrNull(visual)
-  if (!material || material.material?.$case !== 'pbr') return
-  material.material.pbr.emissiveIntensity = intensity
-  lastEmissive.set(visual, intensity)
+function spinSystem(dt: number) {
+  spin += dt
+
+  for (const [, visual] of visuals) {
+    const transform = Transform.getMutableOrNull(visual)
+    if (!transform) continue
+
+    const closeness = nearness.get(visual) ?? 0
+    const speed = 0.6 + closeness * 2.4
+    transform.rotation = Quaternion.fromEulerDegrees(0, (spin * speed * 90) % 360, 0)
+  }
 }
 
 export function carriedByMe(): number {
