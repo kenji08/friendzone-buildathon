@@ -116,7 +116,7 @@ const leaderboard = () => {
       uiBackground={{ color: Color4.create(0, 0, 0, 0.45) }}
     >
       <Label
-        value="Wins"
+        value="Leaderboard"
         fontSize={22}
         color={Color4.create(1, 1, 1, 0.7)}
         textAlign="middle-left"
