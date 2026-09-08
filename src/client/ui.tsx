@@ -183,7 +183,7 @@ const rules = () => {
   if (amParticipating() || !(isWaiting() || isStarting())) return null
 
   const lines = [
-    `Notes spin faster as you get close — walk into one to pick it up.`,
+    `Walk into a note to pick it up.`,
     `What you carry trails behind you for everyone to see.`,
     `Bump into another player and whoever holds more drops one.`,
     `Collect ${CARRY_TO_WIN} notes to win the round.`

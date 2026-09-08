@@ -1,7 +1,7 @@
 import { Entity, GltfContainer, Transform, engine } from '@dcl/sdk/ecs'
 import { Quaternion, Vector3 } from '@dcl/sdk/math'
 import { getPlayer } from '@dcl/sdk/src/players'
-import { GLOW_RANGE, PICKUP_RADIUS } from '../shared/config'
+import { PICKUP_RADIUS } from '../shared/config'
 import { room } from '../shared/messages'
 import { Orb } from '../shared/schemas'
 import { amParticipating, isPlaying } from './setup'
@@ -70,7 +70,6 @@ function orbVisualSystem() {
     if (orb.carrier === '') {
       const worldPos = Transform.getOrNull(entity)?.position
       if (worldPos) visualTransform.position = worldPos
-      setLiveliness(visual, selfPos, worldPos)
 
       // 手放されたら、また要求できるようにする
       requested.delete(orb.index)
@@ -91,27 +90,10 @@ function orbVisualSystem() {
     const trail = trailPosition(carrier, rank)
     if (trail) visualTransform.position = trail
 
-    // 持たれている間は常に速く回す
-    nearness.set(visual, 1)
   }
 }
 
-/**
- * 近づくほど速く回す。
- *
- * 取り込んだモデルのマテリアルはコードから変えられないため、
- * 光の強さでは距離を表せない。代わりに回転の速さと上下の揺れで示す。
- */
-function setLiveliness(visual: Entity, from: Vector3 | undefined, to: Vector3 | undefined) {
-  if (!from || !to) return
-  const distance = Vector3.distance(from, to)
-  const closeness = Math.max(0, Math.min(1, 1 - distance / GLOW_RANGE))
-  nearness.set(visual, closeness)
-}
-
-/** 各音符が今どれだけ近いか。回転の速さに使う */
-const nearness = new Map<Entity, number>()
-
+/** 拾えるものだと分かるよう、常に一定の速さで回す */
 let spin = 0
 
 function spinSystem(dt: number) {
@@ -120,10 +102,7 @@ function spinSystem(dt: number) {
   for (const [, visual] of visuals) {
     const transform = Transform.getMutableOrNull(visual)
     if (!transform) continue
-
-    const closeness = nearness.get(visual) ?? 0
-    const speed = 0.6 + closeness * 2.4
-    transform.rotation = Quaternion.fromEulerDegrees(0, (spin * speed * 90) % 360, 0)
+    transform.rotation = Quaternion.fromEulerDegrees(0, (spin * 90) % 360, 0)
   }
 }
 
