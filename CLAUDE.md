@@ -28,7 +28,11 @@ open "decentraland://realm=http%3A%2F%2F127.0.0.1%3A8000&position=0%2C0&dclenv=o
 
 ## デプロイ
 
+**先に本番ビルドを通すこと。** 素の `npm run build` はソースマップを埋め込むので
+`bin/index.js` が 6.5MB になり、シーン全体のダウンロード量が跳ね上がる（本番ビルドなら 0.6MB）。
+
 ```bash
+npm run build:production
 npm run deploy -- --target-content https://worlds-content-server.decentraland.org
 ```
 

@@ -15,6 +15,9 @@ dist
 README.md
 *.blend
 *.fbx
+*.obj
+*.mtl
+*.wav
 *.zip
 *.rar
 *.md

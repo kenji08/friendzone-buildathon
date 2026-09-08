@@ -183,10 +183,10 @@ const rules = () => {
   if (amParticipating() || !(isWaiting() || isStarting())) return null
 
   const lines = [
-    `Orbs brighten as you get close — walk into one to pick it up.`,
+    `Notes spin faster as you get close — walk into one to pick it up.`,
     `What you carry trails behind you for everyone to see.`,
     `Bump into another player and whoever holds more drops one.`,
-    `Collect ${CARRY_TO_WIN} to win the round.`
+    `Collect ${CARRY_TO_WIN} notes to win the round.`
   ]
 
   return (
@@ -242,31 +242,44 @@ const joinButton = () => {
   if (!isReady()) return null
   const playing = amParticipating()
 
+  // 参加と離脱でボタンの位置をずらす。同じ場所だと、参加した直後の
+  // 指の位置でそのまま離脱を押してしまう
   return (
     <UiEntity
       uiTransform={{
-        width: 380,
+        width: '100%',
         height: 68,
         margin: { top: 10 },
-        justifyContent: 'center',
+        justifyContent: playing ? 'flex-start' : 'center',
         alignItems: 'center',
-        pointerFilter: 'block'
-      }}
-      uiBackground={{
-        color: playing ? Color4.create(0.5, 0.1, 0.1, 0.85) : Color4.create(0.1, 0.45, 0.25, 0.9)
-      }}
-      onMouseDown={() => {
-        if (playing) leaveRound()
-        else joinRound()
+        padding: { left: playing ? '8%' : 0 },
+        pointerFilter: 'none'
       }}
     >
-      <Label
-        value={buttonLabel()}
-        fontSize={28}
-        color={Color4.White()}
-        textAlign="middle-center"
-        uiTransform={{ width: '100%', height: '100%' }}
-      />
+      <UiEntity
+        uiTransform={{
+          width: 380,
+          height: 68,
+          justifyContent: 'center',
+          alignItems: 'center',
+          pointerFilter: 'block'
+        }}
+        uiBackground={{
+          color: playing ? Color4.create(0.5, 0.1, 0.1, 0.85) : Color4.create(0.1, 0.45, 0.25, 0.9)
+        }}
+        onMouseDown={() => {
+          if (playing) leaveRound()
+          else joinRound()
+        }}
+      >
+        <Label
+          value={buttonLabel()}
+          fontSize={28}
+          color={Color4.White()}
+          textAlign="middle-center"
+          uiTransform={{ width: '100%', height: '100%' }}
+        />
+      </UiEntity>
     </UiEntity>
   )
 }
