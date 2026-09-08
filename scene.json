@@ -2,8 +2,8 @@
   "ecs7": true,
   "runtimeVersion": "7",
   "display": {
-    "title": "Friendzone Buildathon (WIP)",
-    "description": "Mobile-first social experience for the Friendzone Buildathon",
+    "title": "Lost Chord",
+    "description": "A song broke apart on this hill. Gather six of its notes before anyone else and the chord sounds again.",
     "navmapThumbnail": "images/scene-thumbnail.png",
     "favicon": "favicon_asset"
   },

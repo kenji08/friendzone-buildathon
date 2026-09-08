@@ -25,3 +25,6 @@ src
 cursor.config
 cursorignore
 .github
+
+# macOS が作る不可視ファイル
+.DS_Store
