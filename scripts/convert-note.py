@@ -29,6 +29,9 @@ TARGET_HEIGHT = 1.0
 # 1個あたりの目標三角形数。32個並べても地形と合わせて上限に余裕が出る量
 TARGET_TRIS = 250
 
+# 音符の色。金色寄りの黄色
+BASE_COLOR = (0.95, 0.72, 0.20, 1.0)
+
 
 def clear_scene():
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -97,6 +100,23 @@ def normalise(obj):
     print(f'  仕上がり: {d.x:.2f} x {d.y:.2f} x {d.z:.2f} m')
 
 
+def add_material(obj):
+    """マテリアルが無い glTF は Decentraland 側で扱いが不安定なので必ず付ける。"""
+    material = bpy.data.materials.new(name='Note')
+    material.use_nodes = True
+    principled = material.node_tree.nodes.get('Principled BSDF')
+    if principled:
+        principled.inputs['Base Color'].default_value = BASE_COLOR
+        # 反射を抑えて、低ポリらしいマットな見え方にする
+        principled.inputs['Roughness'].default_value = 0.85
+        if 'Metallic' in principled.inputs:
+            principled.inputs['Metallic'].default_value = 0.0
+
+    obj.data.materials.clear()
+    obj.data.materials.append(material)
+    print(f'  マテリアル: {material.name}')
+
+
 def main():
     clear_scene()
     import_obj()
@@ -104,6 +124,8 @@ def main():
     obj = join_meshes()
     decimate(obj, TARGET_TRIS)
     normalise(obj)
+
+    add_material(obj)
 
     # 低ポリらしい平面的な陰影にする
     bpy.ops.object.shade_flat()
