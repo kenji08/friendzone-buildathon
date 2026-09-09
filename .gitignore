@@ -11,3 +11,10 @@ BRIEF.md
 
 # 変換の中間生成物
 build/
+
+# 地形のBlenderソース。編集用にローカルへ残す（成果物は assets/models/terrain.glb）
+テクスチャ.blend
+*.blend1
+
+# GDD作成スキル。このゲームとは無関係なのでリポジトリには含めない
+dcl-gdd/
